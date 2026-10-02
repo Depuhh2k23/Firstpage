@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signInAnonymously, signOut } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -15,7 +15,6 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
-const provider = new GoogleAuthProvider();
 
 const K="gate-cse-2027";
 const P=[["Engineering Mathematics","Weeks 1–2"],["Digital Logic","Week 3"],["COA","Week 4"],["Programming & Data Structures","Weeks 5–6"],["Algorithms","Week 7"],["Theory of Computation","Week 8"],["Compiler Design","Week 9"],["Operating Systems","Weeks 10–11"],["DBMS","Weeks 12–13"],["Computer Networks","Week 14"],["Revision I","Week 15"],["PYQ Mastery","Week 16"],["Full Mocks","Weeks 17–18"],["Final Taper","Week 19"]];
@@ -90,10 +89,31 @@ function err(){modal('<h2>Log error</h2><label>Subject</label><select id="es">'+
 function saveErr(){let n=document.getElementById("en").value.trim();if(!n)return;d.errors.push({id:newId(),date:today(),s:document.getElementById("es").value,type:document.getElementById("et").value,n});cloudSave();closeM();render()}
 function mock(){modal('<h2>Record mock</h2><label>Type</label><select id="mt"><option>Full Mock</option><option>Sectional Mock</option><option>PYQ Test</option></select><label>Marks / 100</label><input id="mm" type="number" value="60"><label>Accuracy %</label><input id="ma" type="number" value="75"><div class="actions"><button class="btn primary" onclick="saveMock()">Save</button><button class="btn" onclick="closeM()">Cancel</button></div>')}
 function saveMock(){d.mocks.push({id:newId(),date:today(),type:document.getElementById("mt").value,marks:+document.getElementById("mm").value,acc:+document.getElementById("ma").value});cloudSave();closeM();render()}
-async function login(){try{await signInWithPopup(auth,provider)}catch(e){console.error(e);alert("Firebase sign-in failed: "+e.message)}}
+async function login(){
+  const input=document.getElementById("accessName");
+  const name=(input?.value||"").trim().toLowerCase();
+  const btn=document.getElementById("accessBtn");
+  const msg=document.getElementById("accessMsg");
+  if(!name){msg.textContent="Please enter your name.";return}
+  btn.disabled=true;msg.textContent="Checking access…";
+  try{
+    const snap=await getDoc(doc(db,"user","1"));
+    if(!snap.exists()){msg.textContent="Access record not found in Firebase.";return}
+    const allowedName=String(snap.data().name||"").trim().toLowerCase();
+    if(name!==allowedName){msg.textContent="Access denied. Name not found.";return}
+    msg.textContent="Access verified. Opening your study dashboard…";
+    await signInAnonymously(auth);
+  }catch(e){
+    console.error(e);
+    msg.textContent="Firebase access check failed: "+(e.code||e.message);
+  }finally{btn.disabled=false}
+}
 async function logout(){await signOut(auth)}
 function render(){
-  if(!user){document.getElementById("app").innerHTML='<div class="authscreen"><div class="authcard"><div class="brand">GATE <b>AI Mentor</b></div><div class="eyebrow">CSE 2027 · Firebase enabled</div><h1>Your study progress, synced.</h1><p class="muted">Sign in with Google to sync daily tasks, practice logs, errors and mock scores across devices.</p><button class="btn primary wide" onclick="login()">Continue with Google</button><div class="small authnote">Your Firebase account controls access to your private study data.</div></div></div>';return}
+  if(!user){
+    document.getElementById("app").innerHTML='<div class="authscreen"><div class="authcard"><div class="brand">GATE <b>AI Mentor</b></div><div class="eyebrow">CSE 2027 · Firebase access</div><h1>Continue with your name.</h1><p class="muted">Enter the name registered in the default Firebase database. Your study progress will sync after access is verified.</p><label for="accessName">Name</label><input id="accessName" type="text" autocomplete="name" placeholder="Enter your name" onkeydown="if(event.key===\'Enter\')login()"><button id="accessBtn" class="btn primary wide" onclick="login()">Continue with user</button><div id="accessMsg" class="small authnote">Access is checked against Firebase before your dashboard opens.</div></div></div>';
+    return
+  }
   const c=d.page==="dash"?dash():d.page==="analytics"?analytics():d.page==="roadmap"?roadmap():d.page==="errors"?errors():mocks();
   document.getElementById("app").innerHTML='<div class="shell"><aside class="side"><div class="brand">GATE <b>AI Mentor</b></div><div class="muted">CSE 2027 · study OS</div><div class="userbox"><div class="avatar">'+((user.displayName||user.email||"U")[0].toUpperCase())+'</div><div><b>'+((user.displayName||"Student"))+'</b><div class="small">'+(user.email||"")+'</div></div></div><div class="sync" id="syncStatus">Firebase connected</div><div class="nav">'+[["dash","⌂ Dashboard"],["analytics","◈ Performance"],["roadmap","▦ Roadmap"],["errors","⚠ Error Log"],["mocks","◫ Mock Tracker"]].map(x=>'<button class="'+(d.page===x[0]?"active":"")+'" onclick="nav(\''+x[0]+'\')">'+x[1]+'</button>').join("")+'</div><button class="btn logout" onclick="logout()">Sign out</button></aside><main class="main"><div class="top"><div><div class="eyebrow">GATE CSE 2027</div><div class="title">AI Study & Performance Tracker</div><div class="muted">Week '+W()+' · '+P[W()-1][0]+' · '+new Date().toLocaleDateString("en-IN")+'</div></div><button class="btn primary" onclick="log()">Log practice</button></div>'+c+'</main></div><div id="modal" class="modal"></div>'
 }
